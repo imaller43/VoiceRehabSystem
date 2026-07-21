@@ -164,6 +164,14 @@
 
         let currentLang = localStorage.getItem('appLang') || 'ms';
 
+        // --- PENYELESAIAN 1: Standardkan teks level seperti di index.html ---
+        function getStandardLevel(lvlStr) {
+            let s = (lvlStr || "").toUpperCase();
+            if(s.includes("ABNORMAL") || s.includes("TIDAK NORMAL") || s.includes("SEVERE") || s.includes("MILD") || s.includes("TERUK")) return "ABNORMAL";
+            if(s.includes("NORMAL") || s.includes("SIHAT")) return "NORMAL";
+            return s;
+        }
+
         // --- 1. INISIALISASI DATA DARI MONGODB ---
         async function initTraining() {
             try {
@@ -174,11 +182,14 @@
                 const result = await response.json();
                 patient = result.data;
                 
-                stdLevel = patient.diagnostic_status.level || "";
-                abnStage = patient.diagnostic_status.abnormalStage || 1;
+                // Gunakan getStandardLevel untuk elak ralat huruf/ejaan
+                const diagStatus = patient.diagnostic_status || {};
+                stdLevel = getStandardLevel(diagStatus.level);
+                abnStage = diagStatus.abnormalStage || 1;
                 
-                // Ambil rekod streak yang sebenar dari pangkalan data
-                currentStreak = patient.rehab_progress[`stage${abnStage}_streak`] || 0;
+                // Ambil rekod streak, gunakan OR {} untuk elak ralat jika akaun lama
+                const rehab = patient.rehab_progress || {};
+                currentStreak = rehab[`stage${abnStage}_streak`] || 0;
 
                 setupSessionConfig();
                 updateUI();
@@ -219,13 +230,20 @@
         }
 
         function updateUI() {
-            if(stdLevel === "NORMAL" || stdLevel === "") {
+            if(stdLevel !== "ABNORMAL") {
                 document.getElementById('trainingUI').style.display = "none";
                 document.getElementById('noDataUI').style.display = "block";
                 document.getElementById('noDataTitle').innerText = stdLevel === "NORMAL" ? "Tahap: NORMAL" : "Tiada Data Latihan";
                 document.getElementById('noDataDesc').innerText = stdLevel === "NORMAL" ? "Anda telah pulih sepenuhnya." : "Sila buat diagnostik di Dashboard.";
                 return;
             }
+
+            // --- PENYELESAIAN 2: Munculkan semula UI selepas data sampai ---
+            document.getElementById('trainingUI').style.display = "grid";
+            document.getElementById('noDataUI').style.display = "none";
+
+            // Jika sessionConfig lambat diisi, batalkan arahan untuk mengelakkan ralat JS
+            if(sessionConfig.tasks.length === 0) return;
 
             let currentTask = sessionConfig.tasks[currentTaskIndex];
             let stgName = "";
@@ -263,7 +281,7 @@
                     body: JSON.stringify({
                         username: currentUser,
                         stage: newStage,
-                        streak_stage: abnStage, // Rekodkan streak di tahap yang sedang aktif
+                        streak_stage: abnStage, 
                         streak_value: newStreak
                     })
                 });
@@ -276,7 +294,7 @@
         document.getElementById('btnRewind').addEventListener('click', async () => {
             if (abnStage > 1) {
                 let newStage = abnStage - 1;
-                await saveProgressToDB(newStage, 0); // Reset streak ke 0 bila tukar stage
+                await saveProgressToDB(newStage, 0); 
                 alert(currentLang === 'ms' ? "Kembali ke peringkat sebelumnya." : "Returned to the previous stage.");
                 window.location.reload();
             } else {
@@ -429,7 +447,6 @@
                 passFailMsg.style.color = "#E74C3C";
             }
 
-            // Simpan status akhir ke Pangkalan Data!
             await saveProgressToDB(targetStage, currentStreak);
         }
 
