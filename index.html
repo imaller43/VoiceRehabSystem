@@ -126,11 +126,36 @@
     let currentLang = localStorage.getItem('appLang') || 'ms';
     document.getElementById('langSelect').value = currentLang;
 
+    // --- FUNGSI DAFTAR KELUAR ---
     document.getElementById('logoutBtn').addEventListener('click', () => {
         let confirmMsg = translations[currentLang].logoutConfirm;
         if (confirm(confirmMsg)) {
             localStorage.removeItem('currentUser');
             window.location.href = 'login.html';
+        }
+    });
+
+    // --- FUNGSI TUKAR KATA LALUAN ---
+    document.getElementById('changePassBtn').addEventListener('click', async () => {
+        let msg = currentLang === 'ms' ? "Sila masukkan kata laluan baharu anda:" : "Please enter your new password:";
+        let newPass = prompt(msg);
+        
+        if (newPass && newPass.trim() !== "") {
+            try {
+                const response = await fetch("http://127.0.0.1:5000/api/reset_password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: currentUser, new_password: newPass.trim() })
+                });
+                
+                if (response.ok) {
+                    alert(currentLang === 'ms' ? "Kata laluan berjaya ditukar!" : "Password successfully changed!");
+                } else {
+                    alert(currentLang === 'ms' ? "Gagal menukar kata laluan." : "Failed to change password.");
+                }
+            } catch (e) {
+                alert("Server Connection Error.");
+            }
         }
     });
 
@@ -141,68 +166,73 @@
         return s;
     }
 
-    function loadPatientData() {
-        let usersDB = JSON.parse(localStorage.getItem('usersDB')) || {};
-        
-        if (!usersDB[currentUser]) {
-            usersDB[currentUser] = { level: "", abnormalStage: 1, tested: false };
-            localStorage.setItem('usersDB', JSON.stringify(usersDB));
-        }
-        
-        let patient = usersDB[currentUser];
+    // --- FUNGSI MUAT TURUN DATA DARI MONGODB ---
+    async function loadPatientData() {
+        try {
+            const response = await fetch("http://127.0.0.1:5000/api/get_user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: currentUser })
+            });
 
-        if (patient.level) {
-            patient.level = getStandardLevel(patient.level);
-        }
-
-        const statusBox = document.getElementById('diagnosticStatusBox');
-        const btnTraining = document.getElementById('btnToTraining');
-
-        if (!patient.tested || !patient.level || patient.level === "") {
-            statusBox.style.borderLeftColor = "#7F8C8D";
-            statusBox.style.backgroundColor = "#F8F9FA";
-            let msg = currentLang === 'ms' ? "📝 Sila lakukan rakaman diagnostik AI di sebelah kanan untuk mendapatkan keputusan status suara anda." : "📝 Please perform an AI diagnostic recording on the right to get your voice status.";
-            statusBox.innerHTML = `<div style="font-size: 15px; font-weight: 500; color: #2C3E50; line-height: 1.6;">${msg}</div>`;
-            btnTraining.style.display = "none";
-        } 
-        else if (patient.level === "NORMAL") {
-            statusBox.style.borderLeftColor = "#27AE60";
-            statusBox.style.backgroundColor = "#F0FBF9";
+            if (!response.ok) throw new Error("Gagal ambil data MongoDB");
             
-            let title = currentLang === 'ms' ? "🎉 Tahniah! Suara Sihat (Normal)" : "🎉 Congratulations! Healthy Voice (Normal)";
-            let desc = currentLang === 'ms' ? "Keputusan diagnostik AI mengesahkan suara anda dalam keadaan sihat. Tiada pemulihan diperlukan. Kekalkan gaya hidup yang baik!" : "The AI diagnostic confirms your voice is perfectly healthy. No rehabilitation needed. Keep up the good lifestyle!";
-            
-            statusBox.innerHTML = `
-                <div style="font-size: 20px; font-weight: 700; color: #27AE60; margin-bottom: 8px;">${title}</div>
-                <div style="font-size: 14px; font-weight: 500; color: #1F1B2F; line-height: 1.6;">${desc}</div>
-            `;
-            btnTraining.style.display = "none";
-        } 
-        else if (patient.level === "ABNORMAL") {
-            statusBox.style.borderLeftColor = "#E74C3C";
-            statusBox.style.backgroundColor = "#FDEDEC";
-            
-            let stageStr = "";
-            let stageNum = patient.abnormalStage || 1;
-            
-            // Mengambil nama peringkat dari translation.js
-            if(stageNum === 1) stageStr = translations[currentLang].stage1Name;
-            else if(stageNum === 2) stageStr = translations[currentLang].stage2Name;
-            else if(stageNum === 3) stageStr = translations[currentLang].stage3Name;
+            const result = await response.json();
+            const patient = result.data;
+            const diagnostic = patient.diagnostic_status;
 
-            let title = currentLang === 'ms' ? "⚠️ Tidak Normal (Perlu Pemulihan)" : "⚠️ Abnormal (Needs Rehabilitation)";
-            let desc = currentLang === 'ms' ? "AI telah mengesan masalah pada kualiti vokal anda. Sila mulakan modul pemulihan di bawah." : "AI has detected issues with your vocal quality. Please start the rehabilitation module below.";
-            let btnText = currentLang === 'ms' ? "Mula Latihan ➔" : "Start Training ➔";
+            const statusBox = document.getElementById('diagnosticStatusBox');
+            const btnTraining = document.getElementById('btnToTraining');
+            
+            let detectedLevel = getStandardLevel(diagnostic.level);
 
-            statusBox.innerHTML = `
-                <div style="font-size: 20px; font-weight: 700; color: #E74C3C; margin-bottom: 8px;">${title}</div>
-                <div style="font-size: 14px; font-weight: 500; color: #1F1B2F; margin-bottom: 18px; line-height: 1.6;">${desc}</div>
-                <div style="display: inline-block; padding: 8px 15px; background: white; border-radius: 6px; font-size: 13px; font-weight: 600; color: #C0392B; border: 1px solid #fadbd8; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-                    ${translations[currentLang].activeModule}${stageStr}
-                </div>
-            `;
-            btnTraining.innerText = btnText;
-            btnTraining.style.display = "inline-block";
+            if (!diagnostic.tested || !detectedLevel || detectedLevel === "") {
+                statusBox.style.borderLeftColor = "#7F8C8D";
+                statusBox.style.backgroundColor = "#F8F9FA";
+                let msg = currentLang === 'ms' ? "📝 Sila lakukan rakaman diagnostik AI di sebelah kanan untuk mendapatkan keputusan status suara anda." : "📝 Please perform an AI diagnostic recording on the right to get your voice status.";
+                statusBox.innerHTML = `<div style="font-size: 15px; font-weight: 500; color: #2C3E50; line-height: 1.6;">${msg}</div>`;
+                btnTraining.style.display = "none";
+            } 
+            else if (detectedLevel === "NORMAL") {
+                statusBox.style.borderLeftColor = "#27AE60";
+                statusBox.style.backgroundColor = "#F0FBF9";
+                
+                let title = currentLang === 'ms' ? "🎉 Tahniah! Suara Sihat (Normal)" : "🎉 Congratulations! Healthy Voice (Normal)";
+                let desc = currentLang === 'ms' ? "Keputusan diagnostik AI mengesahkan suara anda dalam keadaan sihat. Tiada pemulihan diperlukan. Kekalkan gaya hidup yang baik!" : "The AI diagnostic confirms your voice is perfectly healthy. No rehabilitation needed. Keep up the good lifestyle!";
+                
+                statusBox.innerHTML = `
+                    <div style="font-size: 20px; font-weight: 700; color: #27AE60; margin-bottom: 8px;">${title}</div>
+                    <div style="font-size: 14px; font-weight: 500; color: #1F1B2F; line-height: 1.6;">${desc}</div>
+                `;
+                btnTraining.style.display = "none";
+            } 
+            else if (detectedLevel === "ABNORMAL") {
+                statusBox.style.borderLeftColor = "#E74C3C";
+                statusBox.style.backgroundColor = "#FDEDEC";
+                
+                let stageStr = "";
+                let stageNum = diagnostic.abnormalStage || 1;
+                
+                if(stageNum === 1) stageStr = translations[currentLang].stage1Name;
+                else if(stageNum === 2) stageStr = translations[currentLang].stage2Name;
+                else if(stageNum === 3) stageStr = translations[currentLang].stage3Name;
+
+                let title = currentLang === 'ms' ? "⚠️ Tidak Normal (Perlu Pemulihan)" : "⚠️ Abnormal (Needs Rehabilitation)";
+                let desc = currentLang === 'ms' ? "AI telah mengesan masalah pada kualiti vokal anda. Sila mulakan modul pemulihan di bawah." : "AI has detected issues with your vocal quality. Please start the rehabilitation module below.";
+                let btnText = currentLang === 'ms' ? "Mula Latihan ➔" : "Start Training ➔";
+
+                statusBox.innerHTML = `
+                    <div style="font-size: 20px; font-weight: 700; color: #E74C3C; margin-bottom: 8px;">${title}</div>
+                    <div style="font-size: 14px; font-weight: 500; color: #1F1B2F; margin-bottom: 18px; line-height: 1.6;">${desc}</div>
+                    <div style="display: inline-block; padding: 8px 15px; background: white; border-radius: 6px; font-size: 13px; font-weight: 600; color: #C0392B; border: 1px solid #fadbd8; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                        ${translations[currentLang].activeModule}${stageStr}
+                    </div>
+                `;
+                btnTraining.innerText = btnText;
+                btnTraining.style.display = "inline-block";
+            }
+        } catch (error) {
+            console.error("Gagal mendapatkan data pesakit:", error);
         }
     }
 
@@ -304,6 +334,7 @@
                     formData.append("audio", audioBlob, "diagnostic.wav");
 
                     try {
+                        // 1. Hantar audio ke AI Python
                         const response = await fetch("http://127.0.0.1:5000/api/diagnose", {
                             method: "POST",
                             body: formData
@@ -314,36 +345,40 @@
                         const data = await response.json();
                         const stdDetected = getStandardLevel(data.level); 
                         
-                        let db = JSON.parse(localStorage.getItem('usersDB')) || {};
-                        if (!db[currentUser]) db[currentUser] = { level: "", abnormalStage: 1, tested: false };
-                        
-                        let patient = db[currentUser];
-                        let oldLevel = getStandardLevel(patient.level); 
+                        // 2. Dapatkan data lama dari pangkalan data dahulu untuk bandingan
+                        const userRes = await fetch("http://127.0.0.1:5000/api/get_user", {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: currentUser })
+                        });
+                        const userData = await userRes.json();
+                        const oldLevel = getStandardLevel(userData.data.diagnostic_status.level);
+                        let finalStage = 1;
 
-                        if (!oldLevel || oldLevel === "" || !patient.tested) {
-                            patient.level = stdDetected;
-                            patient.tested = true; 
-                            if (stdDetected === "ABNORMAL") patient.abnormalStage = 1;
+                        if (!oldLevel || oldLevel === "" || !userData.data.diagnostic_status.tested) {
+                            if (stdDetected === "ABNORMAL") finalStage = 1;
                         } else {
-                            patient.tested = true;
                             if (oldLevel === "ABNORMAL" && stdDetected === "ABNORMAL") {
                                 alert(currentLang === 'ms' ? "Keputusan diagnostik AI masih 'Tidak Normal'. Sila teruskan dan lengkapkan modul pemulihan sedia ada anda." : "Diagnostic result is still 'Abnormal'. Please continue and complete your current rehabilitation module.");
+                                finalStage = userData.data.diagnostic_status.abnormalStage; // Kekalkan tahap lama
                             } else if (oldLevel === "ABNORMAL" && stdDetected === "NORMAL") {
-                                alert(currentLang === 'ms' ? "TAHNIAH! AI mengesahkan suara anda telah pulih menjadi Normal. Data latihan lama anda telah dibersihkan." : "CONGRATULATIONS! AI confirms your voice is now Normal. Old training data has been cleared.");
-                                patient.level = "NORMAL";
-                                delete patient.abnormalStage;
-                                delete patient.activeSessions;
-                                delete patient.streaks;
+                                alert(currentLang === 'ms' ? "TAHNIAH! AI mengesahkan suara anda telah pulih menjadi Normal." : "CONGRATULATIONS! AI confirms your voice is now Normal.");
+                                finalStage = 0;
                             } else if (oldLevel === "NORMAL" && stdDetected === "ABNORMAL") {
                                 alert(currentLang === 'ms' ? "AMARAN: AI mengesan masalah baharu pada kualiti suara anda. Modul latihan pemulihan tahap awal (Peringkat 1) telah diaktifkan." : "WARNING: AI detected new issues with your voice quality. Initial rehab module (Stage 1) activated.");
-                                patient.level = "ABNORMAL";
-                                patient.abnormalStage = 1;
+                                finalStage = 1;
                             } else if (oldLevel === "NORMAL" && stdDetected === "NORMAL") {
                                 alert(currentLang === 'ms' ? "Suara anda kekal dalam keadaan sihat. Teruskan usaha!" : "Your voice remains healthy. Keep it up!");
+                                finalStage = 0;
                             }
                         }
 
-                        localStorage.setItem('usersDB', JSON.stringify(db));
+                        // 3. Simpan keputusan baharu ke MONGODB
+                        await fetch("http://127.0.0.1:5000/api/update_diagnostic", {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: currentUser, level: stdDetected, stage: finalStage })
+                        });
+
+                        // 4. Muat semula antaramuka web
                         loadPatientData();
                         
                         statusText.innerText = currentLang === 'ms' ? "Status: ✅ Analisis AI Selesai" : "Status: ✅ AI Analysis Complete";
