@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Training - Voice Rehabilitation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --header-bg: #221D3A; --header-text: #FFFFFF; --body-bg: #F4F7F6;
+            --text-primary: #1F1B2F; --text-secondary: #7F8C8D; --accent-teal: #37BC9B;
+            --accent-yellow: #FFD600; --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--body-bg); color: var(--text-primary); }
+        
+        header { background-color: var(--header-bg); color: var(--header-text); padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; width: 100%; z-index: 1000; }
+        .logo { font-size: 20px; font-weight: 600; text-decoration: none; color: white; }
+        .nav-right { display: flex; align-items: center; gap: 20px; }
+        .lang-selector { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); padding: 8px; border-radius: 4px; font-family: 'Poppins'; cursor: pointer; }
+        .lang-selector option { background: var(--header-bg); color: white; }
+        .btn-back { color: var(--accent-teal); text-decoration: none; font-size: 14px; font-weight: 500; }
+
+        main { margin-top: 80px; padding: 40px; max-width: 1000px; margin-left: auto; margin-right: auto; }
+        .page-title { font-size: 28px; font-weight: 700; margin-bottom: 20px; text-align: center; }
+
+        .training-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 30px; }
+        
+        .live-card { background: white; padding: 30px; border-radius: 12px; box-shadow: var(--card-shadow); border-top: 5px solid var(--accent-yellow); text-align: center; position: relative; }
+        .task-name { font-size: 22px; font-weight: 600; color: var(--header-bg); margin-bottom: 10px; }
+        .instruction-box { background: #F8F9FA; padding: 15px; border-radius: 8px; font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; border-left: 3px solid var(--accent-teal); text-align: left; }
+        
+        .visualizer-container { width: 100%; height: 150px; background-color: #1a1a2e; border-radius: 10px; margin-bottom: 20px; overflow: hidden; position: relative; }
+        canvas { width: 100%; height: 100%; }
+        .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.5); font-size: 14px; pointer-events: none; }
+
+        .btn-record { background-color: var(--accent-teal); color: white; border: none; padding: 15px 30px; border-radius: 30px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.3s; font-family: 'Poppins'; width: 100%; }
+        .btn-record:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .btn-record.recording { background-color: #E74C3C; animation: pulse 1.5s infinite; }
+        
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+
+        .progress-card { background: white; padding: 30px; border-radius: 12px; box-shadow: var(--card-shadow); display: flex; flex-direction: column; }
+        .progress-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
+        
+        .streak-box { background: var(--header-bg); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+        .streak-num { font-size: 36px; font-weight: 700; color: var(--accent-teal); }
+        .target-text { font-size: 12px; opacity: 0.8; }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; }
+        .stat-value { font-weight: 700; color: var(--accent-teal); }
+        
+        .rep-log { margin-top: 20px; max-height: 200px; overflow-y: auto; font-size: 13px; color: var(--text-secondary); flex-grow: 1;}
+        .rep-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        
+        .final-result-card { display: none; background: white; padding: 40px; border-radius: 12px; box-shadow: var(--card-shadow); text-align: center; border-top: 5px solid #27AE60; margin-top: 20px; }
+        .final-score { font-size: 48px; font-weight: 700; color: var(--accent-teal); margin: 10px 0; }
+        .btn-finish { background-color: var(--header-bg); color: white; border: none; padding: 12px 25px; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 20px; font-family: 'Poppins'; }
+
+        .btn-skip { background-color: #95a5a6; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 600; width: 100%; transition: 0.2s; margin-top: 0;}
+        .btn-skip:hover { background-color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo" data-i18n="logoTitle">Voice Rehabilitation System</div>
+        <div class="nav-right">
+            <a href="index.html" class="btn-back" data-i18n="btnDashboard">⬅ Kembali</a>
+            <select id="langSelect" class="lang-selector">
+                <option value="ms">Bahasa Melayu</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+    </header>
+
+    <main>
+        <h1 class="page-title" data-i18n="trainTitle">Sesi Latihan Masa Nyata</h1>
+
+        <div class="training-grid" id="trainingUI">
+            <div class="live-card">
+                <div style="text-align: left; margin-bottom: 5px; font-size: 12px; color: var(--accent-teal); font-weight: bold;" id="levelIndicator">TAHAP: -</div>
+                <h2 class="task-name" id="taskName">Memuatkan Latihan...</h2>
+                
+                <div class="instruction-box">
+                    <strong data-i18n="instructionLabel">Arahan:</strong>
+                    <span id="taskInstruction">-</span>
+                </div>
+
+                <div class="visualizer-container">
+                    <span class="overlay-text" id="visualizerText">Sedia untuk mendengar...</span>
+                    <canvas id="audioCanvas"></canvas>
+                </div>
+
+                <button class="btn-record" id="btnRecord" data-i18n="btnStartRep">🎙️ Mula Rakam</button>
+                <p id="statusMsg" style="margin-top: 15px; font-size: 13px; color: #7F8C8D; min-height: 20px;"></p>
+            </div>
+
+            <div class="progress-card">
+                <h3 class="progress-title" data-i18n="sessionProgress">Kemajuan Sesi</h3>
+                
+                <div class="streak-box">
+                    <div data-i18n="streakLabel">Hari Berturut-turut Lulus:</div>
+                    <div class="streak-num"><span id="streakDays">0</span> <span style="font-size: 18px; color: white;">hari</span></div>
+                    <div class="target-text" id="targetDays">Sasaran: X hari</div>
+                </div>
+
+                <div class="stat-row">
+                    <span data-i18n="taskLabel">Latihan Semasa:</span>
+                    <span class="stat-value" id="taskCounter">1 / 1</span>
+                </div>
+                <div class="stat-row">
+                    <span data-i18n="repLabel">Ulangan:</span>
+                    <span class="stat-value" id="repCounter">0 / 0</span>
+                </div>
+
+                <div class="rep-log" id="repLog"></div>
+
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button id="btnRewind" class="btn-skip" style="background-color: #bdc3c7; color: #2c3e50;" data-i18n="btnRewind">Kembali ⏮</button>
+                    <button id="btnSkip" class="btn-skip" data-i18n="btnSkip">Langkau ⏭</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="final-result-card" id="finalResultUI">
+            <h2 data-i18n="sessionComplete">🎉 Sesi Latihan Tamat!</h2>
+            <p data-i18n="finalScore" style="margin-top: 15px;">Skor Purata AI:</p>
+            <div class="final-score" id="finalScoreText">0%</div>
+            <p id="passFailMsg" style="font-weight: 500; font-size: 16px;"></p>
+            <button class="btn-finish" id="btnFinish" data-i18n="btnFinish">Simpan & Kembali ke Dashboard</button>
+        </div>
+
+        <div id="noDataUI" style="display:none; text-align:center; padding: 50px;">
+            <h2 id="noDataTitle">Memuatkan...</h2>
+            <p id="noDataDesc" style="color: var(--text-secondary); margin-top: 10px;">Sila tunggu...</p>
+        </div>
+
+    </main>
+
+    <script src="translations.js"></script>
+
+    <script>
+        const currentUser = localStorage.getItem('currentUser') || "Guest";
+        let usersDB = JSON.parse(localStorage.getItem('usersDB')) || {};
+        let patient = usersDB[currentUser] || {};
+        
+        let stdLevel = patient.level || ""; 
+        let abnStage = patient.abnormalStage || 1; 
+
+        patient.streaks = patient.streaks || {};
+        patient.streaks[`stage${abnStage}`] = patient.streaks[`stage${abnStage}`] || 0; 
+
+        let sessionConfig = { tasks: [], passMark: 0, targetDays: 0 };
+
+        if(stdLevel === "ABNORMAL") {
+            if (abnStage === 1) {
+                sessionConfig = { passMark: 80, targetDays: 3,
+                    tasks: [{ name: "Mendengung (Humming)", instKey: "sevInst", reps: 10, duration: 5000 }] };
+            } else if (abnStage === 2) {
+                sessionConfig = { passMark: 85, targetDays: 5,
+                    tasks: [{ name: "Siren Tone", instKey: "modInst", reps: 10, duration: 6000 }] };
+            } else if (abnStage === 3) {
+                sessionConfig = { passMark: 90, targetDays: 7,
+                    tasks: [
+                        { name: "Messa di Voce", instKey: "mildInst1", reps: 10, duration: 8000 },
+                        { name: "Skala Vokal", instKey: "mildInst2", reps: 5, duration: 6000 }
+                    ] };
+            }
+        }
+
+        patient.activeSessions = patient.activeSessions || {};
+        let activeSession = patient.activeSessions[`stage${abnStage}`] || {};
+
+        let currentTaskIndex = activeSession.taskIndex || 0;
+        let currentRep = activeSession.rep || 0;
+        let sessionScores = activeSession.scores || [];
+        
+        const taskNameEl = document.getElementById('taskName');
+        const taskInstEl = document.getElementById('taskInstruction');
+        const taskCounterEl = document.getElementById('taskCounter');
+        const repCounterEl = document.getElementById('repCounter');
+        const btnRecord = document.getElementById('btnRecord');
+        const repLog = document.getElementById('repLog');
+        const statusMsg = document.getElementById('statusMsg');
+
+        let currentLang = localStorage.getItem('appLang') || 'ms';
+
+        function renderRepLog() {
+            repLog.innerHTML = "";
+            let tIdx = 0; let r = 1;
+            let historyHTML = [];
+            let taskText = currentLang === 'ms' ? 'Latihan' : 'Task';
+            let repText = translations[currentLang].repLabel || 'Ulangan:';
+            
+            for(let i=0; i<sessionScores.length; i++) {
+                 historyHTML.push(`<div class="rep-item"><span>${taskText} ${tIdx+1} | ${repText} ${r}</span> <strong>${sessionScores[i]}% Accuracy</strong></div>`);
+                 r++;
+                 if(r > sessionConfig.tasks[tIdx].reps) { tIdx++; r = 1; }
+            }
+            historyHTML.reverse();
+            repLog.innerHTML = historyHTML.join("");
+        }
+
+        function updateUI() {
+            if(stdLevel === "NORMAL" || stdLevel === "") {
+                document.getElementById('trainingUI').style.display = "none";
+                document.getElementById('noDataUI').style.display = "block";
+                document.getElementById('noDataTitle').innerText = stdLevel === "NORMAL" ? "Tahap: NORMAL" : "Tiada Data Latihan";
+                document.getElementById('noDataDesc').innerText = stdLevel === "NORMAL" ? "Anda telah pulih sepenuhnya." : "Sila buat diagnostik di Dashboard.";
+                return;
+            }
+
+            let currentTask = sessionConfig.tasks[currentTaskIndex];
+            let stgName = "";
+            if (abnStage === 1) stgName = translations[currentLang].stage1Name;
+            if (abnStage === 2) stgName = translations[currentLang].stage2Name;
+            if (abnStage === 3) stgName = translations[currentLang].stage3Name;
+
+            document.getElementById('levelIndicator').innerText = `${translations[currentLang].rehabModule}${stgName}${translations[currentLang].targetScore}${sessionConfig.passMark}%)`;
+            taskNameEl.innerText = currentTask.name;
+            taskInstEl.innerText = translations[currentLang][currentTask.instKey];
+            taskCounterEl.innerText = `${currentTaskIndex + 1} / ${sessionConfig.tasks.length}`;
+            repCounterEl.innerText = `${currentRep} / ${currentTask.reps}`;
+
+            document.getElementById('streakDays').innerText = patient.streaks[`stage${abnStage}`];
+            document.getElementById('targetDays').innerText = currentLang === 'ms' ? `Sasaran: ${sessionConfig.targetDays} Hari berturut-turut` : `Target: ${sessionConfig.targetDays} Consecutive days`;
+        }
+
+        function changeLang(lang) {
+            currentLang = lang; document.documentElement.lang = lang; localStorage.setItem('appLang', lang);
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                if (translations[lang][el.getAttribute('data-i18n')]) {
+                    el.innerText = translations[lang][el.getAttribute('data-i18n')];
+                }
+            });
+            renderRepLog(); updateUI();
+        }
+        document.getElementById('langSelect').addEventListener('change', e => changeLang(e.target.value));
+        changeLang(currentLang);
+
+        // --- PENAMBAHAN: Pembolehubah untuk merakam fail ---
+        let audioContext; let analyser; let dataArray; let canvasCtx;
+        let exerciseMediaRecorder; let exerciseAudioChunks = [];
+        const canvas = document.getElementById("audioCanvas");
+        canvasCtx = canvas.getContext("2d");
+
+        function drawVisualizer() {
+            requestAnimationFrame(drawVisualizer);
+            if(!analyser) return;
+            analyser.getByteTimeDomainData(dataArray);
+            canvasCtx.fillStyle = "rgb(26, 26, 46)"; canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            canvasCtx.lineWidth = 2; canvasCtx.strokeStyle = "rgb(55, 188, 155)"; canvasCtx.beginPath();
+            let sliceWidth = canvas.width * 1.0 / analyser.frequencyBinCount; let x = 0;
+            for(let i = 0; i < analyser.frequencyBinCount; i++) {
+                let v = dataArray[i] / 128.0; let y = v * canvas.height / 2;
+                if(i === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            canvasCtx.lineTo(canvas.width, canvas.height / 2); canvasCtx.stroke();
+        }
+
+        document.getElementById('btnRewind').addEventListener('click', () => {
+            if (abnStage > 1) {
+                patient.abnormalStage = abnStage - 1;
+                usersDB[currentUser] = patient;
+                localStorage.setItem('usersDB', JSON.stringify(usersDB));
+                alert(currentLang === 'ms' ? "Kembali ke peringkat sebelumnya." : "Returned to the previous stage.");
+                window.location.reload();
+            } else {
+                alert(currentLang === 'ms' ? "Anda sudah berada di peringkat pertama." : "You are already at the first stage.");
+            }
+        });
+
+        document.getElementById('btnSkip').addEventListener('click', () => {
+            let confirmMsg = currentLang === 'ms' ? "Adakah anda pasti mahu melangkau peringkat ini? (Mod Ujian)" : "Are you sure you want to skip this stage? (Test Mode)";
+            if (confirm(confirmMsg)) {
+                if (abnStage === 1) {
+                    patient.abnormalStage = 2;
+                    usersDB[currentUser] = patient;
+                    localStorage.setItem('usersDB', JSON.stringify(usersDB));
+                    alert(currentLang === 'ms' ? "Peringkat 1 dilangkau. Beralih ke Peringkat 2." : "Stage 1 skipped. Moving to Stage 2.");
+                    window.location.reload();
+                } else if (abnStage === 2) {
+                    patient.abnormalStage = 3;
+                    usersDB[currentUser] = patient;
+                    localStorage.setItem('usersDB', JSON.stringify(usersDB));
+                    alert(currentLang === 'ms' ? "Peringkat 2 dilangkau. Beralih ke Peringkat 3." : "Stage 2 skipped. Moving to Stage 3.");
+                    window.location.reload();
+                } else if (abnStage === 3) {
+                    alert(currentLang === 'ms' ? "Ini adalah peringkat terakhir! Sila kembali ke Dashboard untuk uji AI Diagnostik yang sebenar." : "This is the final stage! Please return to the Dashboard to test the Diagnostic AI.");
+                    window.location.href = "index.html";
+                }
+            }
+        });
+
+        // =========================================================
+        // LOGIK RAKAMAN & PENGHANTARAN AUDIO KE AI API (DIBETULKAN)
+        // =========================================================
+        btnRecord.addEventListener('click', async () => {
+            let currentTask = sessionConfig.tasks[currentTaskIndex];
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // HIDUPKAN VISUALIZER
+                if(!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    source.connect(analyser);
+                    analyser.fftSize = 2048;
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    drawVisualizer(); 
+                }
+                
+                document.getElementById('visualizerText').style.display = "none";
+                btnRecord.innerText = "🔴 Sedang Merakam..."; btnRecord.classList.add("recording"); btnRecord.disabled = true;
+                statusMsg.innerText = `Sila berlatih selama ${currentTask.duration / 1000} saat...`;
+
+                // HIDUPKAN MEDIA RECORDER UNTUK RAKAM BUNYI!
+                exerciseAudioChunks = [];
+                exerciseMediaRecorder = new MediaRecorder(stream);
+                
+                exerciseMediaRecorder.addEventListener("dataavailable", event => {
+                    exerciseAudioChunks.push(event.data);
+                });
+                
+                exerciseMediaRecorder.addEventListener("stop", () => {
+                    stream.getTracks().forEach(track => track.stop()); 
+                    if(audioContext) { audioContext.close(); audioContext = null; }
+                    canvasCtx.clearRect(0, 0, canvas.width, canvas.height); 
+                    
+                    document.getElementById('visualizerText').style.display = "block";
+                    document.getElementById('visualizerText').innerText = currentLang === 'ms' ? "AI Sedang Menilai..." : "AI Evaluating...";
+                    btnRecord.classList.remove("recording");
+                    statusMsg.innerText = translations[currentLang].processingRep;
+
+                    // SEDIAKAN FAIL AUDIO UNTUK DIHANTAR KE PELAYAN (APP.PY)
+                    const audioBlob = new Blob(exerciseAudioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append("audio", audioBlob, "exercise.wav");
+                    formData.append("taskName", currentTask.name); // Hantar nama latihan ke Python
+
+                    // PANGGIL API EVALUATE PYTHON
+                    fetch("http://127.0.0.1:5000/api/evaluate_exercise", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(response => {
+                        if (!response.ok) throw new Error("Server Ralat");
+                        return response.json();
+                    })
+                    .then(data => {
+                        let repScore = data.score; // Ambil markah dari Python!
+                        sessionScores.push(repScore); currentRep++;
+                        
+                        updateUI(); renderRepLog();
+                        btnRecord.innerText = translations[currentLang].btnStartRep; btnRecord.disabled = false;
+                        statusMsg.innerText = ""; document.getElementById('visualizerText').innerText = "Sedia untuk mendengar...";
+
+                        if(currentRep >= currentTask.reps) {
+                            currentTaskIndex++; currentRep = 0;
+                            if(currentTaskIndex >= sessionConfig.tasks.length) {
+                                patient.activeSessions[`stage${abnStage}`] = { taskIndex: currentTaskIndex, rep: currentRep, scores: sessionScores };
+                                usersDB[currentUser] = patient; localStorage.setItem('usersDB', JSON.stringify(usersDB));
+                                finishSession(); return;
+                            } else {
+                                alert("Bagus! Latihan seterusnya: " + sessionConfig.tasks[currentTaskIndex].name); updateUI();
+                            }
+                        }
+
+                        patient.activeSessions[`stage${abnStage}`] = { taskIndex: currentTaskIndex, rep: currentRep, scores: sessionScores };
+                        usersDB[currentUser] = patient; localStorage.setItem('usersDB', JSON.stringify(usersDB));
+                    })
+                    .catch(error => {
+                        console.error(error);
+                        alert(currentLang === 'ms' ? "Gagal menyambung ke Pelayan AI Penilai. Sila pastikan app.py dijalankan." : "Failed to connect to AI Evaluator. Please ensure app.py is running.");
+                        btnRecord.innerText = translations[currentLang].btnStartRep; btnRecord.disabled = false;
+                        statusMsg.innerText = ""; document.getElementById('visualizerText').innerText = "Sedia untuk mendengar...";
+                    });
+                });
+
+                exerciseMediaRecorder.start();
+
+                // HENTIKAN RAKAMAN SELEPAS MASA TAMAT
+                setTimeout(() => {
+                    if (exerciseMediaRecorder && exerciseMediaRecorder.state === "recording") {
+                        exerciseMediaRecorder.stop();
+                    }
+                }, currentTask.duration);
+
+            } catch(err) {
+                alert("Sila benarkan akses mikrofon untuk meneruskan latihan.");
+            }
+        });
+
+        function finishSession() {
+            document.getElementById('trainingUI').style.display = "none";
+            document.getElementById('finalResultUI').style.display = "block";
+
+            let total = sessionScores.reduce((a, b) => a + b, 0);
+            let average = Math.round(total / sessionScores.length);
+            
+            document.getElementById('finalScoreText').innerText = average + "%";
+            const passFailMsg = document.getElementById('passFailMsg');
+
+            if(average >= sessionConfig.passMark) {
+                patient.streaks[`stage${abnStage}`] += 1;
+                passFailMsg.innerText = `LULUS! Hari berturut-turut anda kini: ${patient.streaks['stage'+abnStage]} / ${sessionConfig.targetDays}`;
+                passFailMsg.style.color = "#27AE60";
+
+                if(patient.streaks[`stage${abnStage}`] >= sessionConfig.targetDays) {
+                    if (abnStage === 1) {
+                        alert("TAHNIAH! Anda melepasi syarat Peringkat 1. Anda akan dinaikkan ke Peringkat 2 (Luncuran Nada Siren).");
+                        patient.abnormalStage = 2;
+                    } else if (abnStage === 2) {
+                        alert("TAHNIAH! Anda melepasi syarat Peringkat 2. Anda akan dinaikkan ke Peringkat 3 (Messa di Voce & Skala Vokal).");
+                        patient.abnormalStage = 3;
+                    } else if (abnStage === 3) {
+                        alert("TAHNIAH! Anda telah melengkapkan modul pemulihan tertinggi! Sila lakukan diagnosis AI semula di Dashboard untuk pengesahan penuh.");
+                    }
+                }
+            } else {
+                patient.streaks[`stage${abnStage}`] = 0;
+                passFailMsg.innerText = `GAGAL melepasi benchmark ${sessionConfig.passMark}%. Hari berturut-turut di-reset ke 0.`;
+                passFailMsg.style.color = "#E74C3C";
+            }
+
+            delete patient.activeSessions[`stage${abnStage}`];
+            usersDB[currentUser] = patient;
+            localStorage.setItem('usersDB', JSON.stringify(usersDB));
+        }
+
+        document.getElementById('btnFinish').addEventListener('click', () => window.location.href = "index.html");
+
+    </script>
+</body>
+</html>

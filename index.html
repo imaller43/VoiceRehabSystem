@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Voice Rehabilitation System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --header-bg: #221D3A; --header-text: #FFFFFF; --body-bg: #FFFFFF;
+            --text-primary: #1F1B2F; --text-secondary: #7F8C8D; --accent-teal: #37BC9B;
+            --accent-yellow: #FFD600; --btn-stop-bg: #E74C3C; --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--body-bg); color: var(--text-primary); }
+        
+        header { background-color: var(--header-bg); color: var(--header-text); padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; width: 100%; z-index: 1000; }
+        .logo { font-size: 20px; font-weight: 600; color: var(--header-text); text-decoration: none; }
+        .nav-right { display: flex; align-items: center; gap: 20px; }
+        .user-greeting { font-size: 15px; font-weight: 500; }
+        .lang-selector { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); padding: 8px; border-radius: 4px; font-family: 'Poppins', sans-serif; font-size: 14px; cursor: pointer; }
+        .lang-selector option { background: var(--header-bg); color: white; }
+
+        .btn-logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.5); padding: 8px 15px; border-radius: 4px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.3s; margin-left: 5px; }
+        .btn-logout:hover { background-color: rgba(255,255,255,0.1); border-color: white; }
+
+        main { margin-top: 80px; padding: 80px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; max-width: 1200px; margin-left: auto; margin-right: auto; }
+        .content-left { display: flex; flex-direction: column; gap: 20px; }
+        .main-headline { font-size: 36px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px;}
+        
+        .level-badge-container { padding: 25px; border-radius: 10px; border-left: 6px solid var(--header-bg); box-shadow: 0 2px 10px rgba(0,0,0,0.04); background-color: #F8F9FA; transition: 0.3s;}
+        
+        .btn-training { background-color: var(--accent-teal); color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; display: inline-block; width: fit-content; transition: 0.3s; text-align: center; font-family: 'Poppins', sans-serif; }
+        .btn-training:hover { background-color: #2F9A80; box-shadow: 0 4px 12px rgba(55,188,155,0.3); transform: translateY(-2px); }
+
+        .visual-right { position: relative; display: flex; justify-content: center; align-items: center; }
+        .yellow-backdrop { position: absolute; width: 100%; height: 100%; background-color: var(--accent-yellow); border-radius: 40px; transform: rotate(-3deg); z-index: -1; box-shadow: var(--card-shadow); }
+        .recording-container { background: white; padding: 35px 30px; border-radius: 12px; box-shadow: var(--card-shadow); text-align: center; width: 100%; max-width: 480px; z-index: 10; }
+        .section-title { font-size: 20px; font-weight: 700; margin-bottom: 15px; color: var(--header-bg); }
+        
+        .instruction-box { background: #F0FBF9; padding: 15px; border-radius: 8px; font-size: 13px; color: #2C3E50; margin-bottom: 20px; border-left: 4px solid var(--accent-teal); text-align: left; line-height: 1.5; }
+        .script-text { color: #E74C3C; font-weight: 600; font-size: 14px; display: block; margin-top: 8px; font-style: italic; }
+
+        .visualizer-container { width: 100%; height: 100px; background-color: #1a1a2e; border-radius: 8px; margin-bottom: 15px; overflow: hidden; position: relative; display: none; }
+        canvas { width: 100%; height: 100%; display: block; }
+        .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.5); font-size: 12px; pointer-events: none; }
+
+        .status-box { margin: 15px 0; font-size: 14px; font-weight: 500; background: #F8F9FA; padding: 10px; border-radius: 6px; border: 1px solid #eee;}
+        .btn-controls { display: flex; gap: 15px; justify-content: center; margin-top: 15px; }
+        .btn-control { padding: 12px 25px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Poppins', sans-serif; transition: 0.2s;}
+        .btn-control:disabled { background-color: #95a5a6; cursor: not-allowed; color: rgba(255,255,255,0.7); opacity: 0.7;}
+        .btn-mula { background-color: var(--accent-teal); color: white; }
+        .btn-mula:not(:disabled):hover { background-color: #2F9A80; }
+        .btn-henti { background-color: var(--btn-stop-bg); color: white; }
+        .btn-henti:not(:disabled):hover { background-color: #C0392B; }
+        audio { margin-top: 20px; width: 100%; border-radius: 8px; height: 40px; }
+
+        @media (max-width: 900px) { main { grid-template-columns: 1fr; gap: 40px;} header { padding: 15px 20px; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo" data-i18n="logoTitle">Voice Rehabilitation System</div>
+        <div class="nav-right">
+            <div class="user-greeting">
+                <span data-i18n="hiUser">Hi, </span><span id="clientName" style="font-weight: 600;">Pesakit</span>
+            </div>
+            <select id="langSelect" class="lang-selector">
+                <option value="ms">Bahasa Melayu</option>
+                <option value="en">English</option>
+            </select>
+            <button id="changePassBtn" class="btn-logout" data-i18n="btnChangePass">Tukar Kata Laluan</button>
+            <button id="logoutBtn" class="btn-logout" data-i18n="btnLogout">Daftar Keluar</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="content-left">
+            <h1 class="main-headline" data-i18n="diagnoseTitle">Diagnose your Voice</h1>
+            
+            <div class="level-badge-container" id="diagnosticStatusBox">
+            </div>
+            
+            <a href="training.html" class="btn-training" id="btnToTraining" style="display:none;" data-i18n="btnToTraining">Mula Latihan ➔</a>
+        </div>
+
+        <div class="visual-right">
+            <div class="yellow-backdrop"></div>
+            <div class="recording-container">
+                <h3 class="section-title" data-i18n="boxTitle">🎙️ Rakaman Diagnostik</h3>
+                
+                <div class="instruction-box">
+                    <strong data-i18n="sopTitle">Arahan Rakaman:</strong><br>
+                    <span data-i18n="sopText">Sila tekan Mula dan baca skrip ini dengan nada dan kelajuan biasa:</span>
+                    <span class="script-text">"Aaaaaaaa Iiiiiiiiii. Saya mahu minum air suam. Ibu bapa gembira bersama keluarga."</span>
+                </div>
+
+                <div class="visualizer-container" id="visContainer">
+                    <span class="overlay-text" id="visText">Sedia untuk mendengar...</span>
+                    <canvas id="diagnosticCanvas"></canvas>
+                </div>
+                
+                <div class="status-box" id="statusText">Status: Sedia...</div>
+                
+                <div class="btn-controls">
+                    <button id="startBtn" class="btn-control btn-mula" data-i18n="btnStart">▶ Mula Diagnosis</button>
+                    <button id="stopBtn" class="btn-control btn-henti" disabled data-i18n="btnStop">🛑 Berhenti</button>
+                </div>
+
+                <audio id="audioPlayback" controls></audio>
+            </div>
+        </div>
+    </main>
+
+    <script src="translations.js"></script>
+
+    <script>
+    const currentUser = localStorage.getItem('currentUser') || "Guest";
+    
+    if (currentUser === "Guest") {
+        window.location.href = 'login.html';
+    }
+    
+    document.getElementById('clientName').innerText = currentUser;
+    let currentLang = localStorage.getItem('appLang') || 'ms';
+    document.getElementById('langSelect').value = currentLang;
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        let confirmMsg = translations[currentLang].logoutConfirm;
+        if (confirm(confirmMsg)) {
+            localStorage.removeItem('currentUser');
+            window.location.href = 'login.html';
+        }
+    });
+
+    function getStandardLevel(lvlStr) {
+        let s = (lvlStr || "").toUpperCase();
+        if(s.includes("ABNORMAL") || s.includes("TIDAK NORMAL") || s.includes("SEVERE") || s.includes("MILD") || s.includes("TERUK")) return "ABNORMAL";
+        if(s.includes("NORMAL") || s.includes("SIHAT")) return "NORMAL";
+        return s;
+    }
+
+    function loadPatientData() {
+        let usersDB = JSON.parse(localStorage.getItem('usersDB')) || {};
+        
+        if (!usersDB[currentUser]) {
+            usersDB[currentUser] = { level: "", abnormalStage: 1, tested: false };
+            localStorage.setItem('usersDB', JSON.stringify(usersDB));
+        }
+        
+        let patient = usersDB[currentUser];
+
+        if (patient.level) {
+            patient.level = getStandardLevel(patient.level);
+        }
+
+        const statusBox = document.getElementById('diagnosticStatusBox');
+        const btnTraining = document.getElementById('btnToTraining');
+
+        if (!patient.tested || !patient.level || patient.level === "") {
+            statusBox.style.borderLeftColor = "#7F8C8D";
+            statusBox.style.backgroundColor = "#F8F9FA";
+            let msg = currentLang === 'ms' ? "📝 Sila lakukan rakaman diagnostik AI di sebelah kanan untuk mendapatkan keputusan status suara anda." : "📝 Please perform an AI diagnostic recording on the right to get your voice status.";
+            statusBox.innerHTML = `<div style="font-size: 15px; font-weight: 500; color: #2C3E50; line-height: 1.6;">${msg}</div>`;
+            btnTraining.style.display = "none";
+        } 
+        else if (patient.level === "NORMAL") {
+            statusBox.style.borderLeftColor = "#27AE60";
+            statusBox.style.backgroundColor = "#F0FBF9";
+            
+            let title = currentLang === 'ms' ? "🎉 Tahniah! Suara Sihat (Normal)" : "🎉 Congratulations! Healthy Voice (Normal)";
+            let desc = currentLang === 'ms' ? "Keputusan diagnostik AI mengesahkan suara anda dalam keadaan sihat. Tiada pemulihan diperlukan. Kekalkan gaya hidup yang baik!" : "The AI diagnostic confirms your voice is perfectly healthy. No rehabilitation needed. Keep up the good lifestyle!";
+            
+            statusBox.innerHTML = `
+                <div style="font-size: 20px; font-weight: 700; color: #27AE60; margin-bottom: 8px;">${title}</div>
+                <div style="font-size: 14px; font-weight: 500; color: #1F1B2F; line-height: 1.6;">${desc}</div>
+            `;
+            btnTraining.style.display = "none";
+        } 
+        else if (patient.level === "ABNORMAL") {
+            statusBox.style.borderLeftColor = "#E74C3C";
+            statusBox.style.backgroundColor = "#FDEDEC";
+            
+            let stageStr = "";
+            let stageNum = patient.abnormalStage || 1;
+            
+            // Mengambil nama peringkat dari translation.js
+            if(stageNum === 1) stageStr = translations[currentLang].stage1Name;
+            else if(stageNum === 2) stageStr = translations[currentLang].stage2Name;
+            else if(stageNum === 3) stageStr = translations[currentLang].stage3Name;
+
+            let title = currentLang === 'ms' ? "⚠️ Tidak Normal (Perlu Pemulihan)" : "⚠️ Abnormal (Needs Rehabilitation)";
+            let desc = currentLang === 'ms' ? "AI telah mengesan masalah pada kualiti vokal anda. Sila mulakan modul pemulihan di bawah." : "AI has detected issues with your vocal quality. Please start the rehabilitation module below.";
+            let btnText = currentLang === 'ms' ? "Mula Latihan ➔" : "Start Training ➔";
+
+            statusBox.innerHTML = `
+                <div style="font-size: 20px; font-weight: 700; color: #E74C3C; margin-bottom: 8px;">${title}</div>
+                <div style="font-size: 14px; font-weight: 500; color: #1F1B2F; margin-bottom: 18px; line-height: 1.6;">${desc}</div>
+                <div style="display: inline-block; padding: 8px 15px; background: white; border-radius: 6px; font-size: 13px; font-weight: 600; color: #C0392B; border: 1px solid #fadbd8; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                    ${translations[currentLang].activeModule}${stageStr}
+                </div>
+            `;
+            btnTraining.innerText = btnText;
+            btnTraining.style.display = "inline-block";
+        }
+    }
+
+    function updateLanguage(lang) {
+        currentLang = lang; document.documentElement.lang = lang; localStorage.setItem('appLang', lang);
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            if (translations[lang] && translations[lang][el.getAttribute('data-i18n')]) {
+                el.innerText = translations[lang][el.getAttribute('data-i18n')];
+            }
+        });
+        if(document.getElementById('startBtn').disabled === false) {
+            document.getElementById('statusText').innerText = translations[lang].statusReady || "Status: Sedia...";
+        }
+        loadPatientData(); 
+    }
+
+    document.getElementById('langSelect').addEventListener('change', (e) => updateLanguage(e.target.value));
+    updateLanguage(currentLang); 
+
+    let audioContext; let analyser; let dataArray; let canvasCtx;
+    const canvas = document.getElementById("diagnosticCanvas");
+    canvasCtx = canvas.getContext("2d");
+
+    function drawVisualizer() {
+        requestAnimationFrame(drawVisualizer);
+        if(!analyser) return;
+        analyser.getByteTimeDomainData(dataArray);
+        
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+
+        canvasCtx.fillStyle = "rgb(26, 26, 46)";
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        canvasCtx.lineWidth = 2;
+        canvasCtx.strokeStyle = "rgb(55, 188, 155)";
+        canvasCtx.beginPath();
+        
+        let sliceWidth = canvas.width * 1.0 / analyser.frequencyBinCount; 
+        let x = 0;
+        
+        for(let i = 0; i < analyser.frequencyBinCount; i++) {
+            let v = dataArray[i] / 128.0; 
+            let y = v * canvas.height / 2;
+            if(i === 0) canvasCtx.moveTo(x, y); 
+            else canvasCtx.lineTo(x, y);
+            x += sliceWidth;
+        }
+        canvasCtx.lineTo(canvas.width, canvas.height / 2); 
+        canvasCtx.stroke();
+    }
+
+    let mediaRecorder; let audioChunks = [];
+    const startBtn = document.getElementById('startBtn'); 
+    const stopBtn = document.getElementById('stopBtn');
+    const statusText = document.getElementById('statusText'); 
+    const audioPlayback = document.getElementById('audioPlayback');
+    const visContainer = document.getElementById('visContainer');
+    const visText = document.getElementById('visText');
+
+    startBtn.addEventListener('click', async () => {
+        try {
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+                    echoCancellation: false, 
+                    autoGainControl: false, 
+                    noiseSuppression: false
+                } });
+                
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 2048;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                drawVisualizer();
+
+                visContainer.style.display = "block";
+                visText.style.display = "none";
+
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.addEventListener("dataavailable", event => audioChunks.push(event.data));
+                
+                mediaRecorder.addEventListener("stop", async () => {
+                    stream.getTracks().forEach(track => track.stop());
+                    if(audioContext) { audioContext.close(); audioContext = null; }
+                    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                    visText.style.display = "block";
+                    visText.innerText = currentLang === 'ms' ? "Memproses Data..." : "Processing Data...";
+
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioPlayback.src = URL.createObjectURL(audioBlob);
+                    
+                    statusText.innerText = currentLang === 'ms' ? "Status: 🟡 Menghantar ke Pelayan AI..." : "Status: 🟡 Sending to AI Server...";
+                    statusText.style.color = "#F39C12";
+
+                    const formData = new FormData();
+                    formData.append("audio", audioBlob, "diagnostic.wav");
+
+                    try {
+                        const response = await fetch("http://127.0.0.1:5000/api/diagnose", {
+                            method: "POST",
+                            body: formData
+                        });
+
+                        if (!response.ok) throw new Error("Ralat sambungan AI.");
+
+                        const data = await response.json();
+                        const stdDetected = getStandardLevel(data.level); 
+                        
+                        let db = JSON.parse(localStorage.getItem('usersDB')) || {};
+                        if (!db[currentUser]) db[currentUser] = { level: "", abnormalStage: 1, tested: false };
+                        
+                        let patient = db[currentUser];
+                        let oldLevel = getStandardLevel(patient.level); 
+
+                        if (!oldLevel || oldLevel === "" || !patient.tested) {
+                            patient.level = stdDetected;
+                            patient.tested = true; 
+                            if (stdDetected === "ABNORMAL") patient.abnormalStage = 1;
+                        } else {
+                            patient.tested = true;
+                            if (oldLevel === "ABNORMAL" && stdDetected === "ABNORMAL") {
+                                alert(currentLang === 'ms' ? "Keputusan diagnostik AI masih 'Tidak Normal'. Sila teruskan dan lengkapkan modul pemulihan sedia ada anda." : "Diagnostic result is still 'Abnormal'. Please continue and complete your current rehabilitation module.");
+                            } else if (oldLevel === "ABNORMAL" && stdDetected === "NORMAL") {
+                                alert(currentLang === 'ms' ? "TAHNIAH! AI mengesahkan suara anda telah pulih menjadi Normal. Data latihan lama anda telah dibersihkan." : "CONGRATULATIONS! AI confirms your voice is now Normal. Old training data has been cleared.");
+                                patient.level = "NORMAL";
+                                delete patient.abnormalStage;
+                                delete patient.activeSessions;
+                                delete patient.streaks;
+                            } else if (oldLevel === "NORMAL" && stdDetected === "ABNORMAL") {
+                                alert(currentLang === 'ms' ? "AMARAN: AI mengesan masalah baharu pada kualiti suara anda. Modul latihan pemulihan tahap awal (Peringkat 1) telah diaktifkan." : "WARNING: AI detected new issues with your voice quality. Initial rehab module (Stage 1) activated.");
+                                patient.level = "ABNORMAL";
+                                patient.abnormalStage = 1;
+                            } else if (oldLevel === "NORMAL" && stdDetected === "NORMAL") {
+                                alert(currentLang === 'ms' ? "Suara anda kekal dalam keadaan sihat. Teruskan usaha!" : "Your voice remains healthy. Keep it up!");
+                            }
+                        }
+
+                        localStorage.setItem('usersDB', JSON.stringify(db));
+                        loadPatientData();
+                        
+                        statusText.innerText = currentLang === 'ms' ? "Status: ✅ Analisis AI Selesai" : "Status: ✅ AI Analysis Complete";
+                        statusText.style.color = "#37BC9B"; 
+
+                    } catch (error) {
+                        alert(currentLang === 'ms' ? "Gagal berhubung dengan AI. Pastikan pelayan Python (app.py) sedang berjalan!" : "Failed to connect to AI. Ensure Python server is running!");
+                        statusText.innerText = currentLang === 'ms' ? "Status: ❌ Ralat Pelayan AI" : "Status: ❌ AI Server Error";
+                        statusText.style.color = "#E74C3C";
+                    }
+                });
+            }
+
+            audioChunks = []; mediaRecorder.start();
+            statusText.innerText = translations[currentLang].statusRec || "Status: 🔴 Sedang merakam...";
+            statusText.style.color = "#E74C3C"; startBtn.disabled = true; stopBtn.disabled = false;
+        } catch (error) {
+            alert(currentLang === 'ms' ? "Akses mikrofon ditolak! Pastikan dibenarkan." : "Microphone access denied! Please allow access.");
+        }
+    });
+
+    stopBtn.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+            statusText.innerText = currentLang === 'ms' ? "Status: 🔵 Memproses audio..." : "Status: 🔵 Processing audio...";
+            statusText.style.color = "#3498DB"; startBtn.disabled = false; stopBtn.disabled = true;
+        }
+    });
+    </script>
+</body>
+</html>
