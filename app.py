@@ -568,6 +568,36 @@ def update_diagnostic():
     
     return jsonify({"message": "Data berjaya disimpan!"}), 200
 
+@app.route('/api/update_progress', methods=['POST'])
+def update_progress():
+    data = request.json
+    username = data.get('username')
+    new_stage = data.get('stage')
+    streak_stage = data.get('streak_stage') # Cth: 1, 2, atau 3
+    streak_value = data.get('streak_value') # Cth: Berapa hari berturut-turut
+
+    if not username:
+        return jsonify({"error": "Tiada nama pengguna"}), 400
+
+    # Sediakan kotak data apa yang perlu dikemas kini
+    update_fields = {}
+    
+    if new_stage is not None:
+        update_fields["diagnostic_status.abnormalStage"] = new_stage
+        
+    if streak_stage is not None and streak_value is not None:
+        update_fields[f"rehab_progress.stage{streak_stage}_streak"] = streak_value
+
+    # Jika ada data untuk dikemas kini, simpan ke MongoDB
+    if update_fields:
+        users_collection.update_one(
+            {"username": username},
+            {"$set": update_fields}
+        )
+        print(f"💾 Kemajuan Disimpan: {username} -> Peringkat {new_stage} | Streak Tahap {streak_stage}: {streak_value}")
+    
+    return jsonify({"message": "Kemajuan berjaya disimpan!"}), 200
+
 if __name__ == '__main__':
     print("🚀 Pelayan AI sedia menerima sambungan di http://127.0.0.1:5000")
     print("   Algorithms: PYIN F0 | Stability | Glide Shape | Messa Shape | Scale Steps")

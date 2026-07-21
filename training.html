@@ -142,39 +142,17 @@
 
     <script>
         const currentUser = localStorage.getItem('currentUser') || "Guest";
-        let usersDB = JSON.parse(localStorage.getItem('usersDB')) || {};
-        let patient = usersDB[currentUser] || {};
+        if (currentUser === "Guest") window.location.href = 'login.html';
         
-        let stdLevel = patient.level || ""; 
-        let abnStage = patient.abnormalStage || 1; 
-
-        patient.streaks = patient.streaks || {};
-        patient.streaks[`stage${abnStage}`] = patient.streaks[`stage${abnStage}`] || 0; 
-
+        let patient = {};
+        let stdLevel = ""; 
+        let abnStage = 1; 
+        let currentStreak = 0;
         let sessionConfig = { tasks: [], passMark: 0, targetDays: 0 };
-
-        if(stdLevel === "ABNORMAL") {
-            if (abnStage === 1) {
-                sessionConfig = { passMark: 80, targetDays: 3,
-                    tasks: [{ name: "Mendengung (Humming)", instKey: "sevInst", reps: 10, duration: 5000 }] };
-            } else if (abnStage === 2) {
-                sessionConfig = { passMark: 85, targetDays: 5,
-                    tasks: [{ name: "Siren Tone", instKey: "modInst", reps: 10, duration: 6000 }] };
-            } else if (abnStage === 3) {
-                sessionConfig = { passMark: 90, targetDays: 7,
-                    tasks: [
-                        { name: "Messa di Voce", instKey: "mildInst1", reps: 10, duration: 8000 },
-                        { name: "Skala Vokal", instKey: "mildInst2", reps: 5, duration: 6000 }
-                    ] };
-            }
-        }
-
-        patient.activeSessions = patient.activeSessions || {};
-        let activeSession = patient.activeSessions[`stage${abnStage}`] || {};
-
-        let currentTaskIndex = activeSession.taskIndex || 0;
-        let currentRep = activeSession.rep || 0;
-        let sessionScores = activeSession.scores || [];
+        
+        let currentTaskIndex = 0;
+        let currentRep = 0;
+        let sessionScores = [];
         
         const taskNameEl = document.getElementById('taskName');
         const taskInstEl = document.getElementById('taskInstruction');
@@ -185,6 +163,44 @@
         const statusMsg = document.getElementById('statusMsg');
 
         let currentLang = localStorage.getItem('appLang') || 'ms';
+
+        // --- 1. INISIALISASI DATA DARI MONGODB ---
+        async function initTraining() {
+            try {
+                const response = await fetch("http://127.0.0.1:5000/api/get_user", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: currentUser })
+                });
+                const result = await response.json();
+                patient = result.data;
+                
+                stdLevel = patient.diagnostic_status.level || "";
+                abnStage = patient.diagnostic_status.abnormalStage || 1;
+                
+                // Ambil rekod streak yang sebenar dari pangkalan data
+                currentStreak = patient.rehab_progress[`stage${abnStage}_streak`] || 0;
+
+                setupSessionConfig();
+                updateUI();
+            } catch (e) {
+                console.error("Gagal memuatkan data dari DB", e);
+            }
+        }
+
+        function setupSessionConfig() {
+            if(stdLevel === "ABNORMAL") {
+                if (abnStage === 1) {
+                    sessionConfig = { passMark: 80, targetDays: 3, tasks: [{ name: "Mendengung (Humming)", instKey: "sevInst", reps: 10, duration: 5000 }] };
+                } else if (abnStage === 2) {
+                    sessionConfig = { passMark: 85, targetDays: 5, tasks: [{ name: "Siren Tone", instKey: "modInst", reps: 10, duration: 6000 }] };
+                } else if (abnStage === 3) {
+                    sessionConfig = { passMark: 90, targetDays: 7, tasks: [
+                            { name: "Messa di Voce", instKey: "mildInst1", reps: 10, duration: 8000 },
+                            { name: "Skala Vokal", instKey: "mildInst2", reps: 5, duration: 6000 }
+                    ]};
+                }
+            }
+        }
 
         function renderRepLog() {
             repLog.innerHTML = "";
@@ -223,7 +239,7 @@
             taskCounterEl.innerText = `${currentTaskIndex + 1} / ${sessionConfig.tasks.length}`;
             repCounterEl.innerText = `${currentRep} / ${currentTask.reps}`;
 
-            document.getElementById('streakDays').innerText = patient.streaks[`stage${abnStage}`];
+            document.getElementById('streakDays').innerText = currentStreak;
             document.getElementById('targetDays').innerText = currentLang === 'ms' ? `Sasaran: ${sessionConfig.targetDays} Hari berturut-turut` : `Target: ${sessionConfig.targetDays} Consecutive days`;
         }
 
@@ -239,7 +255,51 @@
         document.getElementById('langSelect').addEventListener('change', e => changeLang(e.target.value));
         changeLang(currentLang);
 
-        // --- PENAMBAHAN: Pembolehubah untuk merakam fail ---
+        // --- 2. FUNGSI MENYIMPAN KE DB ---
+        async function saveProgressToDB(newStage, newStreak) {
+            try {
+                await fetch("http://127.0.0.1:5000/api/update_progress", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username: currentUser,
+                        stage: newStage,
+                        streak_stage: abnStage, // Rekodkan streak di tahap yang sedang aktif
+                        streak_value: newStreak
+                    })
+                });
+            } catch (e) {
+                console.error("Ralat menyimpan kemajuan ke pangkalan data.");
+            }
+        }
+
+        // --- BUTANG KEMBALI & LANGKAU MENGGUNAKAN DB ---
+        document.getElementById('btnRewind').addEventListener('click', async () => {
+            if (abnStage > 1) {
+                let newStage = abnStage - 1;
+                await saveProgressToDB(newStage, 0); // Reset streak ke 0 bila tukar stage
+                alert(currentLang === 'ms' ? "Kembali ke peringkat sebelumnya." : "Returned to the previous stage.");
+                window.location.reload();
+            } else {
+                alert(currentLang === 'ms' ? "Anda sudah berada di peringkat pertama." : "You are already at the first stage.");
+            }
+        });
+
+        document.getElementById('btnSkip').addEventListener('click', async () => {
+            let confirmMsg = currentLang === 'ms' ? "Adakah anda pasti mahu melangkau peringkat ini? (Mod Ujian)" : "Are you sure you want to skip this stage? (Test Mode)";
+            if (confirm(confirmMsg)) {
+                if (abnStage < 3) {
+                    let newStage = abnStage + 1;
+                    await saveProgressToDB(newStage, 0);
+                    alert(currentLang === 'ms' ? `Peringkat dilangkau. Beralih ke Peringkat ${newStage}.` : `Stage skipped. Moving to Stage ${newStage}.`);
+                    window.location.reload();
+                } else {
+                    alert(currentLang === 'ms' ? "Ini adalah peringkat terakhir! Sila kembali ke Dashboard untuk uji AI Diagnostik yang sebenar." : "This is the final stage! Please return to the Dashboard to test the Diagnostic AI.");
+                    window.location.href = "index.html";
+                }
+            }
+        });
+
+        // --- LOGIK RAKAMAN AUDIO & VISUALIZER ---
         let audioContext; let analyser; let dataArray; let canvasCtx;
         let exerciseMediaRecorder; let exerciseAudioChunks = [];
         const canvas = document.getElementById("audioCanvas");
@@ -260,50 +320,12 @@
             canvasCtx.lineTo(canvas.width, canvas.height / 2); canvasCtx.stroke();
         }
 
-        document.getElementById('btnRewind').addEventListener('click', () => {
-            if (abnStage > 1) {
-                patient.abnormalStage = abnStage - 1;
-                usersDB[currentUser] = patient;
-                localStorage.setItem('usersDB', JSON.stringify(usersDB));
-                alert(currentLang === 'ms' ? "Kembali ke peringkat sebelumnya." : "Returned to the previous stage.");
-                window.location.reload();
-            } else {
-                alert(currentLang === 'ms' ? "Anda sudah berada di peringkat pertama." : "You are already at the first stage.");
-            }
-        });
-
-        document.getElementById('btnSkip').addEventListener('click', () => {
-            let confirmMsg = currentLang === 'ms' ? "Adakah anda pasti mahu melangkau peringkat ini? (Mod Ujian)" : "Are you sure you want to skip this stage? (Test Mode)";
-            if (confirm(confirmMsg)) {
-                if (abnStage === 1) {
-                    patient.abnormalStage = 2;
-                    usersDB[currentUser] = patient;
-                    localStorage.setItem('usersDB', JSON.stringify(usersDB));
-                    alert(currentLang === 'ms' ? "Peringkat 1 dilangkau. Beralih ke Peringkat 2." : "Stage 1 skipped. Moving to Stage 2.");
-                    window.location.reload();
-                } else if (abnStage === 2) {
-                    patient.abnormalStage = 3;
-                    usersDB[currentUser] = patient;
-                    localStorage.setItem('usersDB', JSON.stringify(usersDB));
-                    alert(currentLang === 'ms' ? "Peringkat 2 dilangkau. Beralih ke Peringkat 3." : "Stage 2 skipped. Moving to Stage 3.");
-                    window.location.reload();
-                } else if (abnStage === 3) {
-                    alert(currentLang === 'ms' ? "Ini adalah peringkat terakhir! Sila kembali ke Dashboard untuk uji AI Diagnostik yang sebenar." : "This is the final stage! Please return to the Dashboard to test the Diagnostic AI.");
-                    window.location.href = "index.html";
-                }
-            }
-        });
-
-        // =========================================================
-        // LOGIK RAKAMAN & PENGHANTARAN AUDIO KE AI API (DIBETULKAN)
-        // =========================================================
         btnRecord.addEventListener('click', async () => {
             let currentTask = sessionConfig.tasks[currentTaskIndex];
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                // HIDUPKAN VISUALIZER
                 if(!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     analyser = audioContext.createAnalyser();
@@ -318,13 +340,9 @@
                 btnRecord.innerText = "🔴 Sedang Merakam..."; btnRecord.classList.add("recording"); btnRecord.disabled = true;
                 statusMsg.innerText = `Sila berlatih selama ${currentTask.duration / 1000} saat...`;
 
-                // HIDUPKAN MEDIA RECORDER UNTUK RAKAM BUNYI!
                 exerciseAudioChunks = [];
                 exerciseMediaRecorder = new MediaRecorder(stream);
-                
-                exerciseMediaRecorder.addEventListener("dataavailable", event => {
-                    exerciseAudioChunks.push(event.data);
-                });
+                exerciseMediaRecorder.addEventListener("dataavailable", event => exerciseAudioChunks.push(event.data));
                 
                 exerciseMediaRecorder.addEventListener("stop", () => {
                     stream.getTracks().forEach(track => track.stop()); 
@@ -336,23 +354,15 @@
                     btnRecord.classList.remove("recording");
                     statusMsg.innerText = translations[currentLang].processingRep;
 
-                    // SEDIAKAN FAIL AUDIO UNTUK DIHANTAR KE PELAYAN (APP.PY)
                     const audioBlob = new Blob(exerciseAudioChunks, { type: 'audio/wav' });
                     const formData = new FormData();
                     formData.append("audio", audioBlob, "exercise.wav");
-                    formData.append("taskName", currentTask.name); // Hantar nama latihan ke Python
+                    formData.append("taskName", currentTask.name);
 
-                    // PANGGIL API EVALUATE PYTHON
-                    fetch("http://127.0.0.1:5000/api/evaluate_exercise", {
-                        method: "POST",
-                        body: formData
-                    })
-                    .then(response => {
-                        if (!response.ok) throw new Error("Server Ralat");
-                        return response.json();
-                    })
+                    fetch("http://127.0.0.1:5000/api/evaluate_exercise", { method: "POST", body: formData })
+                    .then(response => { if (!response.ok) throw new Error("Server Ralat"); return response.json(); })
                     .then(data => {
-                        let repScore = data.score; // Ambil markah dari Python!
+                        let repScore = data.score;
                         sessionScores.push(repScore); currentRep++;
                         
                         updateUI(); renderRepLog();
@@ -362,16 +372,11 @@
                         if(currentRep >= currentTask.reps) {
                             currentTaskIndex++; currentRep = 0;
                             if(currentTaskIndex >= sessionConfig.tasks.length) {
-                                patient.activeSessions[`stage${abnStage}`] = { taskIndex: currentTaskIndex, rep: currentRep, scores: sessionScores };
-                                usersDB[currentUser] = patient; localStorage.setItem('usersDB', JSON.stringify(usersDB));
                                 finishSession(); return;
                             } else {
                                 alert("Bagus! Latihan seterusnya: " + sessionConfig.tasks[currentTaskIndex].name); updateUI();
                             }
                         }
-
-                        patient.activeSessions[`stage${abnStage}`] = { taskIndex: currentTaskIndex, rep: currentRep, scores: sessionScores };
-                        usersDB[currentUser] = patient; localStorage.setItem('usersDB', JSON.stringify(usersDB));
                     })
                     .catch(error => {
                         console.error(error);
@@ -382,20 +387,15 @@
                 });
 
                 exerciseMediaRecorder.start();
-
-                // HENTIKAN RAKAMAN SELEPAS MASA TAMAT
-                setTimeout(() => {
-                    if (exerciseMediaRecorder && exerciseMediaRecorder.state === "recording") {
-                        exerciseMediaRecorder.stop();
-                    }
-                }, currentTask.duration);
+                setTimeout(() => { if (exerciseMediaRecorder && exerciseMediaRecorder.state === "recording") exerciseMediaRecorder.stop(); }, currentTask.duration);
 
             } catch(err) {
                 alert("Sila benarkan akses mikrofon untuk meneruskan latihan.");
             }
         });
 
-        function finishSession() {
+        // --- 3. TAMAT SESI & HANTAR KEPUTUSAN KE MONGODB ---
+        async function finishSession() {
             document.getElementById('trainingUI').style.display = "none";
             document.getElementById('finalResultUI').style.display = "block";
 
@@ -404,35 +404,39 @@
             
             document.getElementById('finalScoreText').innerText = average + "%";
             const passFailMsg = document.getElementById('passFailMsg');
+            
+            let targetStage = abnStage;
 
             if(average >= sessionConfig.passMark) {
-                patient.streaks[`stage${abnStage}`] += 1;
-                passFailMsg.innerText = `LULUS! Hari berturut-turut anda kini: ${patient.streaks['stage'+abnStage]} / ${sessionConfig.targetDays}`;
+                currentStreak += 1;
+                passFailMsg.innerText = `LULUS! Hari berturut-turut anda kini: ${currentStreak} / ${sessionConfig.targetDays}`;
                 passFailMsg.style.color = "#27AE60";
 
-                if(patient.streaks[`stage${abnStage}`] >= sessionConfig.targetDays) {
+                if(currentStreak >= sessionConfig.targetDays) {
                     if (abnStage === 1) {
-                        alert("TAHNIAH! Anda melepasi syarat Peringkat 1. Anda akan dinaikkan ke Peringkat 2 (Luncuran Nada Siren).");
-                        patient.abnormalStage = 2;
+                        alert("TAHNIAH! Anda melepasi syarat Peringkat 1. Anda akan dinaikkan ke Peringkat 2.");
+                        targetStage = 2; currentStreak = 0;
                     } else if (abnStage === 2) {
-                        alert("TAHNIAH! Anda melepasi syarat Peringkat 2. Anda akan dinaikkan ke Peringkat 3 (Messa di Voce & Skala Vokal).");
-                        patient.abnormalStage = 3;
+                        alert("TAHNIAH! Anda melepasi syarat Peringkat 2. Anda akan dinaikkan ke Peringkat 3.");
+                        targetStage = 3; currentStreak = 0;
                     } else if (abnStage === 3) {
                         alert("TAHNIAH! Anda telah melengkapkan modul pemulihan tertinggi! Sila lakukan diagnosis AI semula di Dashboard untuk pengesahan penuh.");
                     }
                 }
             } else {
-                patient.streaks[`stage${abnStage}`] = 0;
+                currentStreak = 0;
                 passFailMsg.innerText = `GAGAL melepasi benchmark ${sessionConfig.passMark}%. Hari berturut-turut di-reset ke 0.`;
                 passFailMsg.style.color = "#E74C3C";
             }
 
-            delete patient.activeSessions[`stage${abnStage}`];
-            usersDB[currentUser] = patient;
-            localStorage.setItem('usersDB', JSON.stringify(usersDB));
+            // Simpan status akhir ke Pangkalan Data!
+            await saveProgressToDB(targetStage, currentStreak);
         }
 
         document.getElementById('btnFinish').addEventListener('click', () => window.location.href = "index.html");
+
+        // Panggil inisialisasi pada waktu pertama kali page dibuka
+        initTraining();
 
     </script>
 </body>
